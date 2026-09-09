@@ -1,6 +1,6 @@
 #include <cstdio>
 #include <cstring>
-#include <string.h>
+#include <string>
 
 #include "main.h"
 
@@ -42,7 +42,10 @@ static EventGroupHandle_t wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-static const char *TAG = "wifi_station";
+#define HTTP_PORT 80
+
+static const char *WIFI_TAG = "wifi_ap";
+static const char *HTTP_TAG = "http_server";
 static int wifi_retry_num = 0;
 
 // event handler for wifi and ip connection
@@ -53,14 +56,14 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t e
         if (wifi_retry_num < WIFI_MAXIMUM_RETRY) {
             esp_wifi_connect();
             wifi_retry_num++;
-            ESP_LOGI(TAG, "retry to connect to the AP");
+            ESP_LOGI(WIFI_TAG, "retry to connect to the AP");
         } else {
             xEventGroupSetBits(wifi_event_group, WIFI_FAIL_BIT);
         }
-        ESP_LOGI(TAG,"connect to the AP fail");
+        ESP_LOGI(WIFI_TAG,"connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(WIFI_TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         wifi_retry_num = 0;
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
     }
@@ -106,7 +109,7 @@ void wifi_init_sta(){
     // init wifi driver
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "wifi_init_sta finished.");
+    ESP_LOGI(WIFI_TAG, "wifi_init_sta finished.");
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
@@ -119,17 +122,53 @@ void wifi_init_sta(){
     /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s", WIFI_SSID, WIFI_PASS);
+        ESP_LOGI(WIFI_TAG, "connected to ap SSID:%s password:%s", WIFI_SSID, WIFI_PASS);
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", WIFI_SSID, WIFI_PASS);
+        ESP_LOGI(WIFI_TAG, "Failed to connect to SSID:%s, password:%s", WIFI_SSID, WIFI_PASS);
     } else {
-        ESP_LOGE(TAG, "UNEXPECTED EVENT");
+        ESP_LOGE(WIFI_TAG, "UNEXPECTED EVENT");
     }
 }
 
-// void httpd_handle_t start_http_server(){
+static esp_err_t hello_get_handler(httpd_req_t *req){
+    char* buf;
+    size_t buf_len;
 
-// }
+    /* Get header value string length and allocate memory for length + 1,
+     * extra byte for null termination */
+    
+    std::string response = "Hello!\n";
+    
+    httpd_resp_set_type(req, "text/plain");
+    httpd_resp_send(req, response.c_str(), response.size());
+
+    return ESP_OK;
+}
+
+static const httpd_uri_t hello_uri = {
+    .uri = "/hello",
+    .method = HTTP_GET,
+    .handler = hello_get_handler,
+    .user_ctx = NULL
+};
+
+static httpd_handle_t start_http_server(){
+    httpd_handle_t server = NULL;
+    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+
+    config.server_port = HTTP_PORT;
+    config.lru_purge_enable = true;
+
+    ESP_LOGI(HTTP_TAG, "Starting server on port: '%d'", config.server_port);
+
+    if (httpd_start(&server, &config) == ESP_OK) {
+        // Set URI handlers
+        ESP_LOGI(HTTP_TAG, "Registering URI handlers");
+        httpd_register_uri_handler(server, &hello_uri);
+    }
+
+    return server;
+}
 
 //Initialize NVS
 void init_nvs(){
@@ -151,7 +190,10 @@ extern "C" void app_main(void)
 {
     init_nvs();
 
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+    ESP_LOGI(WIFI_TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
+
+    ESP_LOGI(HTTP_TAG, "ESP_HTTP_LISTENING");
+    start_http_server();
     // create_tasks();
 }
