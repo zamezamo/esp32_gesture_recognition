@@ -1,0 +1,11 @@
+#ifndef MAIN_H
+#define MAIN_H
+
+#define HTTP_PORT 80
+
+#define WIFI_SSID   "esp32"
+#define WIFI_PASS   "12345678"
+#define WIFI_CONN_MAX_RETRIES  5
+#define WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
+
+#endif

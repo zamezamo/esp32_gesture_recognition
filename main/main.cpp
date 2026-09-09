@@ -27,12 +27,6 @@
 
 #define TASK_PRIORITY_HIGH 3
 
-#define WIFI_SSID   "esp32"
-#define WIFI_PASS   "12345678"
-
-#define WIFI_MAXIMUM_RETRY  5
-#define WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
-
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t wifi_event_group;
 
@@ -42,29 +36,29 @@ static EventGroupHandle_t wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-#define HTTP_PORT 80
-
 static const char *WIFI_TAG = "wifi_ap";
 static const char *HTTP_TAG = "http_server";
+
 static int wifi_retry_num = 0;
 
 // event handler for wifi and ip connection
-static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
+static void esp_wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (wifi_retry_num < WIFI_MAXIMUM_RETRY) {
+        if (wifi_retry_num < WIFI_CONN_MAX_RETRIES) {
             esp_wifi_connect();
             wifi_retry_num++;
-            ESP_LOGI(WIFI_TAG, "retry to connect to the AP");
+            ESP_LOGI(WIFI_TAG, "Retry to connect to the AP");
         } else {
             xEventGroupSetBits(wifi_event_group, WIFI_FAIL_BIT);
         }
-        ESP_LOGI(WIFI_TAG,"connect to the AP fail");
+        ESP_LOGI(WIFI_TAG,"Connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(WIFI_TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(WIFI_TAG, "Got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         wifi_retry_num = 0;
+        
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
@@ -88,12 +82,12 @@ void wifi_init_sta(){
     esp_event_handler_instance_t instance_got_ip;
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
-                                                        &wifi_event_handler,
+                                                        &esp_wifi_event_handler,
                                                         NULL,
                                                         &instance_any_id));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
                                                         IP_EVENT_STA_GOT_IP,
-                                                        &wifi_event_handler,
+                                                        &esp_wifi_event_handler,
                                                         NULL,
                                                         &instance_got_ip));
 
@@ -109,7 +103,7 @@ void wifi_init_sta(){
     // init wifi driver
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(WIFI_TAG, "wifi_init_sta finished.");
+    ESP_LOGI(WIFI_TAG, "Wifi initialized.");
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
@@ -122,7 +116,7 @@ void wifi_init_sta(){
     /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(WIFI_TAG, "connected to ap SSID:%s password:%s", WIFI_SSID, WIFI_PASS);
+        ESP_LOGI(WIFI_TAG, "Connected to SSID:%s password:%s", WIFI_SSID, WIFI_PASS);
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(WIFI_TAG, "Failed to connect to SSID:%s, password:%s", WIFI_SSID, WIFI_PASS);
     } else {
@@ -131,12 +125,6 @@ void wifi_init_sta(){
 }
 
 static esp_err_t hello_get_handler(httpd_req_t *req){
-    char* buf;
-    size_t buf_len;
-
-    /* Get header value string length and allocate memory for length + 1,
-     * extra byte for null termination */
-    
     std::string response = "Hello!\n";
     
     httpd_resp_set_type(req, "text/plain");
@@ -180,20 +168,11 @@ void init_nvs(){
     ESP_ERROR_CHECK(ret);
 }
 
-// void create_tasks(){
-//     intptr_t task_id0 = 0;
-    
-//     xTaskCreatePinnedToCore(vBlinkRGBLed, "vBlinkRGBLed", 4096, (void*)task_id0, TASK_PRIORITY_HIGH, NULL, CORE0);
-// }
-
 extern "C" void app_main(void)
 {
     init_nvs();
 
-    ESP_LOGI(WIFI_TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
-    ESP_LOGI(HTTP_TAG, "ESP_HTTP_LISTENING");
     start_http_server();
-    // create_tasks();
 }
