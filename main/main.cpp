@@ -171,8 +171,6 @@ void init_nvs(){
 extern "C" void app_main(void)
 {
     init_nvs();
-
-    wifi_init_sta();
-
     start_http_server();
+    wifi_init_sta();
 }
