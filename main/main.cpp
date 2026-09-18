@@ -21,6 +21,11 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+#include "esp_cache.h"
+#include "driver/i2c_master.h"
+#include "esp_cam_ctlr.h"
+#include "esp_cam_ctlr_dvp.h"
+
 #define CORE0       0
 // only define xCoreID CORE1 as 1 if this is a multiple core processor target, else define it as tskNO_AFFINITY
 #define CORE1       ((CONFIG_FREERTOS_NUMBER_OF_CORES > 1) ? 1 : tskNO_AFFINITY)
@@ -36,10 +41,34 @@ static EventGroupHandle_t wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
+
+#define CAMERA_HRES             (240)
+#define CAMERA_VRES             (240)
+#define RGB565_BITS_PER_PIXEL   (8)
+
+#define DVP_CAM_XCLK_FREQ_HZ       (20000000)
+#define DVP_CAM_DATA_WIDTH         (8)
+#define DVP_CAM_D0_IO               (5)
+#define DVP_CAM_D1_IO               (18)
+#define DVP_CAM_D2_IO               (19)
+#define DVP_CAM_D3_IO               (21)
+#define DVP_CAM_D4_IO               (36)
+#define DVP_CAM_D5_IO               (39)
+#define DVP_CAM_D6_IO               (34)
+#define DVP_CAM_D7_IO               (35)
+#define EXAMPLE_DVP_CAM_XCLK_IO            (0)
+#define EXAMPLE_DVP_CAM_PCLK_IO            (4)
+#define EXAMPLE_DVP_CAM_DE_IO              (22)
+#define EXAMPLE_DVP_CAM_VSYNC_IO           (37)
+#define EXAMPLE_DVP_CAM_HSYNC_IO           (-1)
+
 static const char *WIFI_TAG = "wifi_ap";
 static const char *HTTP_TAG = "http_server";
 
 static int wifi_retry_num = 0;
+
+void *cam_frame_buffer = NULL;
+size_t cam_frame_buffer_size = 0;
 
 // event handler for wifi and ip connection
 static void esp_wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
@@ -166,6 +195,30 @@ void init_nvs(){
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+}
+
+void init_camera(){
+    cam_frame_buffer_size = CAMERA_HRES * CAMERA_VRES * RGB565_BITS_PER_PIXEL;
+
+    esp_cam_ctlr_handle_t cam_handle = NULL;
+
+    esp_cam_ctlr_dvp_pin_config_t pin_cfg = {
+        .data_width = EXAMPLE_DVP_CAM_DATA_WIDTH,
+        .data_io = {
+            DVP_CAM_D0_IO,
+            DVP_CAM_D1_IO,
+            DVP_CAM_D2_IO,
+            DVP_CAM_D3_IO,
+            DVP_CAM_D4_IO,
+            DVP_CAM_D5_IO,
+            DVP_CAM_D6_IO,
+            DVP_CAM_D7_IO,
+        },
+        .vsync_io = EXAMPLE_DVP_CAM_VSYNC_IO,
+        .de_io = EXAMPLE_DVP_CAM_DE_IO,
+        .pclk_io = EXAMPLE_DVP_CAM_PCLK_IO,
+        .xclk_io = EXAMPLE_DVP_CAM_XCLK_IO, // Set XCLK pin to generate XCLK signal
+    };
 }
 
 extern "C" void app_main(void)
