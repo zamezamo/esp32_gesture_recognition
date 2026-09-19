@@ -12,6 +12,7 @@
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
+#include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_netif.h"
@@ -21,10 +22,7 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
-#include "esp_cache.h"
-#include "driver/i2c_master.h"
-#include "esp_cam_ctlr.h"
-#include "esp_cam_ctlr_dvp.h"
+#include "esp_camera.h"
 
 #define CORE0       0
 // only define xCoreID CORE1 as 1 if this is a multiple core processor target, else define it as tskNO_AFFINITY
@@ -41,34 +39,11 @@ static EventGroupHandle_t wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-
-#define CAMERA_HRES             (240)
-#define CAMERA_VRES             (240)
-#define RGB565_BITS_PER_PIXEL   (8)
-
-#define DVP_CAM_XCLK_FREQ_HZ       (20000000)
-#define DVP_CAM_DATA_WIDTH         (8)
-#define DVP_CAM_D0_IO               (5)
-#define DVP_CAM_D1_IO               (18)
-#define DVP_CAM_D2_IO               (19)
-#define DVP_CAM_D3_IO               (21)
-#define DVP_CAM_D4_IO               (36)
-#define DVP_CAM_D5_IO               (39)
-#define DVP_CAM_D6_IO               (34)
-#define DVP_CAM_D7_IO               (35)
-#define EXAMPLE_DVP_CAM_XCLK_IO            (0)
-#define EXAMPLE_DVP_CAM_PCLK_IO            (4)
-#define EXAMPLE_DVP_CAM_DE_IO              (22)
-#define EXAMPLE_DVP_CAM_VSYNC_IO           (37)
-#define EXAMPLE_DVP_CAM_HSYNC_IO           (-1)
-
 static const char *WIFI_TAG = "wifi_ap";
 static const char *HTTP_TAG = "http_server";
+static const char *CAMERA_TAG = "cam_ov2640";
 
 static int wifi_retry_num = 0;
-
-void *cam_frame_buffer = NULL;
-size_t cam_frame_buffer_size = 0;
 
 // event handler for wifi and ip connection
 static void esp_wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
@@ -153,19 +128,64 @@ void wifi_init_sta(){
     }
 }
 
-static esp_err_t hello_get_handler(httpd_req_t *req){
-    std::string response = "Hello!\n";
-    
-    httpd_resp_set_type(req, "text/plain");
-    httpd_resp_send(req, response.c_str(), response.size());
+typedef struct {
+        httpd_req_t *req;
+        size_t len;
+} jpg_chunking_t;
 
-    return ESP_OK;
+static size_t jpg_encode_stream(void * arg, size_t index, const void* data, size_t len){
+    jpg_chunking_t *j = (jpg_chunking_t *)arg;
+    if(!index){
+        j->len = 0;
+    }
+    if(httpd_resp_send_chunk(j->req, (const char *)data, len) != ESP_OK){
+        return 0;
+    }
+    j->len += len;
+    return len;
 }
 
-static const httpd_uri_t hello_uri = {
-    .uri = "/hello",
+static esp_err_t img_handler(httpd_req_t *req){
+    camera_fb_t *fb = NULL;
+    esp_err_t res = ESP_OK;
+    size_t fb_len = 0;
+    int64_t fr_start = esp_timer_get_time();
+
+    fb = esp_camera_fb_get();
+    if (!fb) {
+        ESP_LOGE(CAMERA_TAG, "Camera capture failed");
+        httpd_resp_send_500(req);
+        return ESP_FAIL;
+    }
+    res = httpd_resp_set_type(req, "image/jpeg");
+
+    if(res == ESP_OK){
+        res = httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+    }
+
+    if(res == ESP_OK){
+        if(fb->format == PIXFORMAT_JPEG){
+            fb_len = fb->len;
+            res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
+        } else {
+            jpg_chunking_t jchunk = {req, 0};
+            res = frame2jpg_cb(fb, 100, jpg_encode_stream, &jchunk) ? ESP_OK : ESP_FAIL;
+            httpd_resp_send_chunk(req, NULL, 0);
+            fb_len = jchunk.len;
+        }
+    }
+
+    esp_camera_fb_return(fb);
+    int64_t fr_end = esp_timer_get_time();
+    ESP_LOGI(CAMERA_TAG, "JPG: %uKB %ums", (uint32_t)(fb_len/1024), (uint32_t)((fr_end - fr_start)/1000));
+
+    return res;
+}
+
+static const httpd_uri_t index_uri = {
+    .uri = "/",
     .method = HTTP_GET,
-    .handler = hello_get_handler,
+    .handler = img_handler,
     .user_ctx = NULL
 };
 
@@ -181,7 +201,7 @@ static httpd_handle_t start_http_server(){
     if (httpd_start(&server, &config) == ESP_OK) {
         // Set URI handlers
         ESP_LOGI(HTTP_TAG, "Registering URI handlers");
-        httpd_register_uri_handler(server, &hello_uri);
+        httpd_register_uri_handler(server, &index_uri);
     }
 
     return server;
@@ -198,32 +218,62 @@ void init_nvs(){
 }
 
 void init_camera(){
-    cam_frame_buffer_size = CAMERA_HRES * CAMERA_VRES * RGB565_BITS_PER_PIXEL;
+    static camera_config_t camera_config;
+    camera_config.pin_pwdn  = PWDN_GPIO_NUM;
+    camera_config.pin_reset = RESET_GPIO_NUM;
+    camera_config.pin_xclk = XCLK_GPIO_NUM;
+    camera_config.pin_sccb_sda = SIOD_GPIO_NUM;
+    camera_config.pin_sccb_scl = SIOC_GPIO_NUM;
 
-    esp_cam_ctlr_handle_t cam_handle = NULL;
+    camera_config.pin_d7 = Y9_GPIO_NUM;
+    camera_config.pin_d6 = Y8_GPIO_NUM;
+    camera_config.pin_d5 = Y7_GPIO_NUM;
+    camera_config.pin_d4 = Y6_GPIO_NUM;
+    camera_config.pin_d3 = Y5_GPIO_NUM;
+    camera_config.pin_d2 = Y4_GPIO_NUM;
+    camera_config.pin_d1 = Y3_GPIO_NUM;
+    camera_config.pin_d0 = Y2_GPIO_NUM;
+    camera_config.pin_vsync = VSYNC_GPIO_NUM;
+    camera_config.pin_href = HREF_GPIO_NUM;
+    camera_config.pin_pclk = PCLK_GPIO_NUM;
 
-    esp_cam_ctlr_dvp_pin_config_t pin_cfg = {
-        .data_width = EXAMPLE_DVP_CAM_DATA_WIDTH,
-        .data_io = {
-            DVP_CAM_D0_IO,
-            DVP_CAM_D1_IO,
-            DVP_CAM_D2_IO,
-            DVP_CAM_D3_IO,
-            DVP_CAM_D4_IO,
-            DVP_CAM_D5_IO,
-            DVP_CAM_D6_IO,
-            DVP_CAM_D7_IO,
-        },
-        .vsync_io = EXAMPLE_DVP_CAM_VSYNC_IO,
-        .de_io = EXAMPLE_DVP_CAM_DE_IO,
-        .pclk_io = EXAMPLE_DVP_CAM_PCLK_IO,
-        .xclk_io = EXAMPLE_DVP_CAM_XCLK_IO, // Set XCLK pin to generate XCLK signal
-    };
+    camera_config.xclk_freq_hz = 20000000;
+    camera_config.ledc_timer = LEDC_TIMER_0;
+    camera_config.ledc_channel = LEDC_CHANNEL_0;
+
+    camera_config.pixel_format = PIXFORMAT_GRAYSCALE;
+    camera_config.frame_size = FRAMESIZE_QVGA;
+
+    camera_config.grab_mode = CAMERA_GRAB_LATEST;
+    camera_config.fb_location = CAMERA_FB_IN_PSRAM;
+    camera_config.jpeg_quality = 10;
+    camera_config.fb_count = 2;
+
+    //initialize the camera
+    esp_err_t ret = esp_camera_init(&camera_config);
+    ESP_ERROR_CHECK(ret);
+
+    sensor_t* s = esp_camera_sensor_get();
+    s->set_lenc(s, false);
+    s->set_whitebal(s, true);
+    s->set_wb_mode(s, false);
+    s->set_denoise(s, true);
+    s->set_gain_ctrl(s, true);
+    s->set_gainceiling(s, GAINCEILING_2X);
+    s->set_exposure_ctrl(s, true);
+    s->set_aec2(s, true);
+    s->set_wpc(s, true);
+    s->set_raw_gma(s, true);
 }
 
 extern "C" void app_main(void)
 {
+    init_camera();
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
     init_nvs();
-    start_http_server();
     wifi_init_sta();
+
+    start_http_server();
 }

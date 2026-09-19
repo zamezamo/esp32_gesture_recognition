@@ -20,18 +20,19 @@
     }
   },
   "idf.openOcdConfigs": [
-    "board/esp32s3-bridge.cfg"
+    "interface/ftdi/esp32_devkitj_v1.cfg",
+    "target/esp32.cfg"
   ],
-  "idf.portWin": "COM4",
+  "idf.portWin": "COM9",
   "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf",
   "idf.customExtraVars": {
-    "IDF_TARGET": "esp32s3"
+    "IDF_TARGET": "esp32"
   },
   "clangd.path": "C:\\Espressif\\tools\\esp-clangd\\esp-21.1.3_20260408\\esp-clangd\\bin\\clangd.exe",
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=c:\\Users\\a.zamoysky\\esp32-s3_test\\build"
+    "--compile-commands-dir=c:\\Users\\Artyom\\Desktop\\esp32_gesture_recognition\\build"
   ],
   "idf.flashType": "UART"
 }
