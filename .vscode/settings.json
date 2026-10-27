@@ -20,7 +20,7 @@
     }
   },
   "idf.openOcdConfigs": [
-    "interface/ftdi/esp32_devkitj_v1.cfg",
+    "interface/ftdi/esp_ftdi.cfg",
     "target/esp32.cfg"
   ],
   "idf.portWin": "COM9",
@@ -34,5 +34,6 @@
     "--query-driver=**",
     "--compile-commands-dir=c:\\Users\\Artyom\\Desktop\\esp32_gesture_recognition\\build"
   ],
-  "idf.flashType": "UART"
+  "idf.flashType": "UART",
+  "idf.port": "COM3"
 }
