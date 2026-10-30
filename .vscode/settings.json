@@ -24,7 +24,7 @@
     "target/esp32.cfg"
   ],
   "idf.portWin": "COM9",
-  "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf",
+  "idf.currentSetup": "/home/artyom/.espressif/v6.1/esp-idf",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32"
   },
