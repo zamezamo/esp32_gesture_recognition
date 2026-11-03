@@ -1,4 +1,28 @@
 dependencies:
+  espressif/esp-nn:
+    component_hash: 8411b307e5bb3618df19fe442f7ca5d5a8cb488f5010d9070eb14d80257aa140
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.4.2
+  espressif/esp-tflite-micro:
+    component_hash: dfc88325b37855744c8a2da15f34ee6fe084e7a39ccdbfaac99cf063cd9d65c3
+    dependencies:
+    - name: espressif/esp-nn
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=1.3.0'
+    - name: idf
+      require: private
+      version: '>=5.1'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.4.2
   espressif/esp32-camera:
     component_hash: bc9c8a6b51df777a014fa295825b3de5069bc0300c317acff20c97cf4a10ac7d
     dependencies:
@@ -28,8 +52,9 @@ dependencies:
       type: idf
     version: 6.1.0
 direct_dependencies:
+- espressif/esp-tflite-micro
 - espressif/esp32-camera
 - idf
-manifest_hash: 079cd76a1b78fd0481392058432bc96697bbd9d49546bbf2187df03ad08fe135
+manifest_hash: 9a5a044cb7d6000a35c9b47da7abba94e6ceaa1b98cef7627ff17bbdccf84953
 target: esp32
 version: 3.0.0
