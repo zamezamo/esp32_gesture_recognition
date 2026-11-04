@@ -1,16 +1,5 @@
-#ifndef MAIN_H
-#define MAIN_H
-
-// HTTP SERVER SETTINGS
-#define HTTP_PORT    80
-
-
-// WIFI CREDENTIALS AND SETTINGS
-#define WIFI_SSID                       "esp32"
-#define WIFI_PASS                       "12345678"
-#define WIFI_CONN_MAX_RETRIES           5
-#define WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA2_PSK
-
+#ifndef CAMERA_H_
+#define CAMERA_H_
 
 // OV2640 CAMERA PINS
 #define PWDN_GPIO_NUM       32
@@ -35,5 +24,6 @@
 
 #define LED_GPIO_NUM        4
 
+void init_camera();
 
 #endif
