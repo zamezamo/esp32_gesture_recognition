@@ -1,6 +1,8 @@
 #ifndef WIFI_H_
 #define WIFI_H_
 
+constexpr const char *WIFI_TAG = "wifi_ap";
+
 // WIFI CREDENTIALS AND SETTINGS
 #define WIFI_SSID                       "esp32"
 #define WIFI_PASS                       "12345678"

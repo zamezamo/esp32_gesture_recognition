@@ -4,8 +4,6 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 
-static const char *HTTP_TAG = "http_server";
-
 static const httpd_uri_t index_uri = {
     .uri = "/",
     .method = HTTP_GET,

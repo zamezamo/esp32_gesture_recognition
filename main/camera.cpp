@@ -28,10 +28,10 @@ void init_camera(){
     camera_config.ledc_channel = LEDC_CHANNEL_0;
 
     camera_config.pixel_format = PIXFORMAT_GRAYSCALE;
-    camera_config.frame_size = FRAMESIZE_128X128;
+    camera_config.frame_size = FRAMESIZE_240X240;
 
     camera_config.grab_mode = CAMERA_GRAB_LATEST;
-    camera_config.fb_location = CAMERA_FB_IN_PSRAM;
+    camera_config.fb_location = CAMERA_FB_IN_DRAM;
     camera_config.jpeg_quality = 10;
     camera_config.fb_count = 2;
 

@@ -9,8 +9,6 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 
-static const char *WIFI_TAG = "wifi_ap";
-
 static int wifi_retry_num = 0;
 
 /* The event group allows multiple bits for each event, but we only care about two events:

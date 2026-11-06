@@ -4,6 +4,7 @@
 #include "camera.h"
 #include "wifi.h"
 #include "http_server.h"
+#include "hand_gesture_model.h"
 
 // #define CORE0       0
 // // only define xCoreID CORE1 as 1 if this is a multiple core processor target, else define it as tskNO_AFFINITY
@@ -20,5 +21,8 @@ extern "C" void app_main(void)
     init_nvs();
     wifi_init_sta();
 
-    start_http_server();
+    init_hand_gesture_model();
+
+    if (tf_interpreter)
+        start_http_server();
 }
