@@ -1,7 +1,7 @@
 #ifndef HAND_GESTURE_MODEL_H_
 #define HAND_GESTURE_MODEL_H_
 
-#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "esp_camera.h"
 
 constexpr const char *TFLITE_TAG = "tflite_model";
 
@@ -17,7 +17,6 @@ constexpr int kMaxImageSize = kNumCols * kNumRows * kNumChannels;
 
 extern const char kCategoryLabels[kCategoryCount];
 
-extern tflite::MicroInterpreter* tf_interpreter;
-
 void init_hand_gesture_model();
+void predict_hand_gesture(camera_fb_t* fb);
 #endif

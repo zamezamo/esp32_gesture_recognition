@@ -23,6 +23,5 @@ extern "C" void app_main(void)
 
     init_hand_gesture_model();
 
-    if (tf_interpreter)
-        start_http_server();
+    start_http_server();
 }
