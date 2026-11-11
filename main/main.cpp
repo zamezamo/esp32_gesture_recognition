@@ -21,7 +21,7 @@ extern "C" void app_main(void)
     init_nvs();
     wifi_init_sta();
 
-    init_hand_gesture_model();
+    init_hand_gesture_task();
 
     start_http_server();
 }

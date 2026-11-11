@@ -6,7 +6,7 @@
 constexpr const char *TFLITE_TAG = "tflite_model";
 
 // TFLITE MODEL PARAMETERS
-constexpr int kTensorArenaSize = 512 * 1024;
+constexpr int kTensorArenaSize = 128 * 1024;
 
 constexpr int kCategoryCount = 24;
 constexpr int kNumCols = 28;
@@ -17,6 +17,6 @@ constexpr int kMaxImageSize = kNumCols * kNumRows * kNumChannels;
 
 extern const char kCategoryLabels[kCategoryCount];
 
-void init_hand_gesture_model();
-void predict_hand_gesture(camera_fb_t* fb);
+void init_hand_gesture_task();
+void get_hand_gesture_frame(const camera_fb_t* fb);
 #endif

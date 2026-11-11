@@ -16,6 +16,7 @@ void start_http_server(){
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 
     config.server_port = HTTP_PORT;
+    config.core_id = 0;
     config.lru_purge_enable = true;
 
     ESP_LOGI(HTTP_TAG, "Starting server on port: '%d'", config.server_port);

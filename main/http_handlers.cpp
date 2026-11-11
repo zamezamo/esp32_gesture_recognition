@@ -58,7 +58,7 @@ esp_err_t img_handler(httpd_req_t *req){
         }
     }
 
-    predict_hand_gesture(fb);
+    get_hand_gesture_frame(fb);
 
     esp_camera_fb_return(fb);
     int64_t fr_end = esp_timer_get_time();
