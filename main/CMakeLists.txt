@@ -5,6 +5,7 @@ idf_component_register(
         "hand_gesture_model.cpp"
         "http_handlers.cpp"
         "http_server.cpp"
+        "stream_server.cpp"
         "wifi.cpp"
 
     INCLUDE_DIRS

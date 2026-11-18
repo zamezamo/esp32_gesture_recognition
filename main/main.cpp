@@ -4,6 +4,7 @@
 #include "camera.h"
 #include "wifi.h"
 #include "http_server.h"
+#include "stream_server.h"
 #include "hand_gesture_model.h"
 
 // #define CORE0       0
@@ -23,5 +24,6 @@ extern "C" void app_main(void)
 
     init_hand_gesture_task();
 
+    start_stream_server();
     start_http_server();
 }
