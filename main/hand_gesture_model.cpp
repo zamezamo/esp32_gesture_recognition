@@ -20,10 +20,11 @@ static tflite::TfLiteTensor* input = nullptr;
 
 static tflite::MicroInterpreter* tf_interpreter = nullptr;
 
-static QueueHandle_t task_hand_gesture_queue = nullptr;
+static QueueHandle_t hand_model_queue_request = nullptr;
+static QueueHandle_t hand_model_queue_result = nullptr;
 
-static TaskHandle_t task_hand_gesture_handle = nullptr;
-static std::atomic<bool> task_hand_gesture_handle_ready{false};
+static TaskHandle_t hand_model_handle = nullptr;
+static std::atomic<bool> hand_model_ready{false};
 
 static constexpr uint32_t kInferenceStackBytes = 12 * 1024;
 
@@ -170,11 +171,16 @@ static void predict_hand_gesture(camera_fb_t* fb){
         }
     }
 
-    float probability = (static_cast<int>(best_value) - output->params.zero_point) * output->params.scale;
+    const HandGestureResult result = {
+        .label = kCategoryLabels[best_index],
+        .probability = std::clamp((static_cast<int>(best_value) - output->params.zero_point) * output->params.scale, 0.0f, 1.0f),
+    };
 
     MicroPrintf(
-        "%c: %.3f", kCategoryLabels[best_index], std::clamp(probability, 0.0f, 1.0f)
+        "%c: %.3f", result.label, result.probability
     );
+
+    xQueueOverwrite(hand_model_queue_result, &result);
 
 }
 
@@ -185,18 +191,18 @@ static void hand_gesture_task(void*) {
     if (!init_hand_gesture_model()) {
         ESP_LOGE(TFLITE_TAG, "Model initialization failed, task disabled");
 
-        task_hand_gesture_handle = nullptr;
+        hand_model_handle = nullptr;
         vTaskDelete(nullptr);
 
         return;
     }
 
-    task_hand_gesture_handle_ready.store(true, std::memory_order_release);
+    hand_model_ready.store(true, std::memory_order_release);
 
     camera_fb_t *fb = nullptr;
 
     for (;;) {
-        if (xQueueReceive(task_hand_gesture_queue, &fb, portMAX_DELAY) == pdTRUE) {
+        if (xQueueReceive(hand_model_queue_request, &fb, portMAX_DELAY) == pdTRUE) {
             predict_hand_gesture(fb);
         }
     }
@@ -208,9 +214,19 @@ void init_hand_gesture_task() {
     return;
 #endif
 
-    task_hand_gesture_queue = xQueueCreate(1, sizeof(camera_fb_t *));
-    if (!task_hand_gesture_queue) {
-        ESP_LOGE(TFLITE_TAG, "Creating hand gesture task queue failed");
+    hand_model_queue_request = xQueueCreate(1, sizeof(camera_fb_t *));
+    hand_model_queue_result = xQueueCreate(1, sizeof(HandGestureResult));
+    if (!hand_model_queue_request || !hand_model_queue_result) {
+        if (hand_model_queue_request){
+            vQueueDelete(hand_model_queue_request);
+        }
+        if (hand_model_queue_result){
+            vQueueDelete(hand_model_queue_result);
+        }
+        hand_model_queue_request = nullptr;
+        hand_model_queue_result = nullptr;
+
+        ESP_LOGE(TFLITE_TAG, "Creating hand gesture task queues failed");
 
         return;
     }
@@ -221,12 +237,15 @@ void init_hand_gesture_task() {
         kInferenceStackBytes,
         nullptr,
         2,
-        &task_hand_gesture_handle,
+        &hand_model_handle,
         1
     );
+
     if (created != pdPASS) {
-        vQueueDelete(task_hand_gesture_queue);
-        task_hand_gesture_queue = nullptr;
+        vQueueDelete(hand_model_queue_request);
+        vQueueDelete(hand_model_queue_result);
+        hand_model_queue_request = nullptr;
+        hand_model_queue_result = nullptr;
 
         ESP_LOGE(TFLITE_TAG, "Creating hand gesture task failed");
 
@@ -235,15 +254,31 @@ void init_hand_gesture_task() {
 }
 
 void get_hand_gesture_frame(const camera_fb_t* fb) {
-    if (!task_hand_gesture_queue || !task_hand_gesture_handle_ready.load(std::memory_order_acquire)) {
+    if (!hand_model_queue_request || !hand_model_ready.load(std::memory_order_acquire)) {
         ESP_LOGE(TFLITE_TAG, "Hang gesture task queue not ready");
 
         return;
     }
 
-    if (xQueueOverwrite(task_hand_gesture_queue, &fb) != pdTRUE){
+    if (xQueueOverwrite(hand_model_queue_request, &fb) != pdTRUE){
         ESP_LOGE(TFLITE_TAG, "Error adding hand frame to queue");
-
+        
         return;
+    }
+}
+
+esp_err_t wait_hand_gesture_result(HandGestureResult *result, uint16_t timeout_ms){
+    if (!hand_model_queue_result || !hand_model_ready.load(std::memory_order_acquire)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    for (;;){
+        HandGestureResult out{};
+        if (xQueueReceive(hand_model_queue_result, &out, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) {
+            return ESP_ERR_TIMEOUT;
+        }
+        if (out.label){
+            *result = out;
+            return ESP_OK;
+        }
     }
 }

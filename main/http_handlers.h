@@ -6,9 +6,13 @@
 
 constexpr const char *CAMERA_TAG = "cam_ov2640";
 
+constexpr const uint16_t RECOGNIZE_HANDLER_TIMEOUT_MS = 5000;
+
 esp_err_t index_handler(httpd_req_t *req);
 esp_err_t stream_handler(httpd_req_t *req);
 esp_err_t recognize_handler(httpd_req_t *req);
+
+void init_recognize_http_worker();
 
 #endif
 

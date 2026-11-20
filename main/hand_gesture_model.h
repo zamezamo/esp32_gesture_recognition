@@ -17,6 +17,12 @@ constexpr int kMaxImageSize = kNumCols * kNumRows * kNumChannels;
 
 extern const char kCategoryLabels[kCategoryCount];
 
+struct HandGestureResult {
+    char label;
+    float probability;
+};
+
 void init_hand_gesture_task();
 void get_hand_gesture_frame(const camera_fb_t* fb);
+esp_err_t wait_hand_gesture_result(HandGestureResult *result, uint16_t timeout_ms);
 #endif

@@ -110,6 +110,7 @@ static const char INDEX_HTML[] = R"rawliteral(
             const status = document.getElementById("status");
 
             button.disabled = true;
+            status.style.color = '#666666';
             status.innerText = "stay calm. recognition...";
 
             try {
@@ -118,6 +119,12 @@ static const char INDEX_HTML[] = R"rawliteral(
                 if (!response.ok){
                     throw new Error("HTTP error " + response.status);
                 }
+
+                const data = await response.json();
+
+                status.style.color = '#16a34a';
+                status.innerText = "gesture: " + data.gesture + ", confidence: " + data.confidence + "%";
+                button.disabled = false;
             }
             catch(error) {
                 status.innerText = error.message;

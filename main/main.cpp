@@ -6,6 +6,7 @@
 #include "http_server.h"
 #include "stream_server.h"
 #include "hand_gesture_model.h"
+#include "http_handlers.h"
 
 // #define CORE0       0
 // // only define xCoreID CORE1 as 1 if this is a multiple core processor target, else define it as tskNO_AFFINITY
@@ -23,6 +24,7 @@ extern "C" void app_main(void)
     wifi_init_sta();
 
     init_hand_gesture_task();
+    init_recognize_http_worker();
 
     start_stream_server();
     start_http_server();
